@@ -39,7 +39,7 @@ public:
 	}
 
 	template <typename U>
-	void Deatroy(U *p) // Метод для разрушения объекта
+	void Destroy(U *p) // Метод для разрушения объекта
 	{
 		p->~U();
 	}
