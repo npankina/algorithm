@@ -1,4 +1,4 @@
-/*
+﻿/*
  * MIT License
  * Copyright (c) 2024 Nathalie Pankin
  *
@@ -24,10 +24,10 @@
 #pragma once
 #include <stack>
 #include <iterator>
-#include <iostream>
+#include "BSTree_Allocator.h"
 
 
-template <typename T>
+template <typename T, typename Alloc = std::allocator<T>>
 class BSTree
 {
 private:
@@ -82,10 +82,14 @@ public:
 		Tree_Iterator& operator++()
 		{ /* Алгоритм:
 			1. Переходит к следующему узлу в in-order обходе.
-			2. Если у текущего узла есть правый потомок, добавляет все его левые потомки в стек. 
+			2. Если у текущего узла есть правый потомок, добавляет все его левые потомки в стек.
 			2.1. Затем возвращает следующий узел из стека как текущий.
 			3. Если стек пуст, итерация завершена.
 		  */
+
+			if (current_ == nullptr)
+				throw std::out_of_range("Iteration beyond the tree.");
+
 			if (current_->right_ != nullptr)
 				Push_left(current_->right_); // Добавляем все левые узлы правого поддерева
 
@@ -95,14 +99,14 @@ public:
 				Node_Stack.pop();
 			}
 			else
-				current_ = nullptr;
+				current_ = nullptr; // Итерация завершена
 
 			return *this;
 		}
 
 		Tree_Iterator operator++(int)
 		{ /* Алгоритм:
-			1. Постфиксный инкремент требует создания временного итератора, который содержит текущее состояние, 
+			1. Постфиксный инкремент требует создания временного итератора, который содержит текущее состояние,
 				чтобы вернуть его до изменения итератора.
 			2. Выполняет инкремент аналогично префиксному инкременту, но возвращает временную копию исходного итератора.
 		  */
@@ -158,18 +162,18 @@ public:
 	BSTree& operator=(const BSTree &other); // copy assign
 	BSTree& operator=(BSTree &&temp) noexcept; // move assign
 
-	void Insert(T value);
+	void Insert(const T &value);
 	bool Search(T value) const;
 	void Remove(T value);
 	void Print_in_order() const;
-	
+
 	Iterator begin() const;
 	Iterator end() const;
 	Const_Iterator сbegin() const;
 	Const_Iterator сend() const;
 
 private:
-	Node* Insert(Node *node, T value);
+	Node* Insert(Node *node, const T &value);
 	Node* Find_min(Node *node) const;
 	Node* Copy(Node *node);
 	Node* Remove(Node *node, T value);
@@ -177,7 +181,10 @@ private:
 	void Clear(Node *node);
 	void Inorder(Node *node) const;
 
+	using Allocator_type = typename Alloc::template rebind<Node>::other;
+
 	Node *root_;
+	Allocator_type alloc_;
 	size_t duplicate_elements_count_;
 	size_t total_elements_count_;
 };

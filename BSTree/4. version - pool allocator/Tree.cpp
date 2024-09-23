@@ -35,20 +35,20 @@ BSTree<T, Alloc>::BSTree() : root_(nullptr), duplicate_elements_count_(0), total
 {}
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
-BSTree<T, Alloc>::BSTree(const BSTree &other) 
-: root_(nullptr), duplicate_elements_count_(other.duplicate_elements_count_),
-  total_elements_count_(other.total_elements_count_)
+BSTree<T, Alloc>::BSTree(const BSTree &other)
+	: root_(nullptr), duplicate_elements_count_(other.duplicate_elements_count_),
+	total_elements_count_(other.total_elements_count_)
 { // copy ctor
-	
-	root_ = Copy(other);
+
+	root_ = Copy(other.root_);
 	duplicate_elements_count_ = other.duplicate_elements_count_;
 	total_elements_count_ = other.total_elements_count_;
 }
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
-BSTree<T, Alloc>::BSTree(BSTree &&temp) noexcept 
-: root_(temp.root_), duplicate_elements_count_(temp.duplicate_elements_count_), 
-  total_elements_count_(temp.total_elements_count_)
+BSTree<T, Alloc>::BSTree(BSTree &&temp) noexcept
+	: root_(temp.root_), duplicate_elements_count_(temp.duplicate_elements_count_),
+	total_elements_count_(temp.total_elements_count_)
 { // move ctor
 	temp.root_ = nullptr;
 }
@@ -79,12 +79,25 @@ BSTree<T, Alloc>& BSTree<T, Alloc>::operator=(BSTree &&temp) noexcept // move as
 }
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
-void BSTree<T, Alloc>::Insert(T value)
+void BSTree<T, Alloc>::Insert(const T &value)
 {	// Проверка допустимости значения (например, если вы не хотите вставлять нулевые значения)
 	if (value == T())
-		throw std::invalid_argument("Значение не может быть пустым или нулевым");
+		throw std::invalid_argument("The value can't be empty or null");
 
-	root_ = Insert(root_, value);
+	try
+	{
+		root_ = Insert(root_, value);
+	}
+	catch (const std::bad_alloc &err)
+	{
+		std::cerr << "Error inserting element: " << err.what() << std::endl;
+		throw;
+	}
+	catch (...)
+	{
+		std::cerr << "Unknown error inserting element." << std::endl;
+		throw;
+	}
 }
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
@@ -100,7 +113,7 @@ void BSTree<T, Alloc>::Remove(T value)
 	 2. Обработка попыток удаления узлов с некорректными значениями.*/
 
 	if (!Search(value))
-		throw std::runtime_error("Элемент не найден в дереве");
+		throw std::runtime_error("Element not found in the tree.");
 
 	root_ = Remove(root_, value);
 }
@@ -115,20 +128,39 @@ template <typename T, typename Alloc>
 typename BSTree<T, Alloc>::Node* BSTree<T, Alloc>::Insert(Node *node, const T &value)
 {/* Алгоритм:
 	1. Если корневой узел пуст, создается новый узел и устанавливается как корень.
-	2. В противном случае начинается рекурсивная вставка. 
+	2. В противном случае начинается рекурсивная вставка.
 	2.1. Если новое значение меньше текущего узла, рекурсивно вызываем Insert для левого поддерева, иначе для правого.
 	3. Операция продолжается до тех пор, пока не будет найдено подходящее пустое место для нового узла.
   */
-	
-	try
+
+	if (node == nullptr) // Выделяем память для нового узла с использованием аллокатора
 	{
-		if (node == nullptr) // Выделяем память для нового узла с использованием аллокатора
+		Node *new_node = nullptr;
+
+		try
 		{
-			Node * new_node = alloc_.Allocate(1);
+			new_node = alloc_.Allocate(1);
 			alloc_.Construct(new_node, Node(value));
-			return new_node;
+		}
+		catch (const std::bad_alloc &err)
+		{
+			std::cerr << "Memory allocation error when creating node: " << err.what() << std::endl;
+			throw;
+		}
+		catch (...)
+		{
+			if (new_node != nullptr)
+				alloc_.Deallocate(new_node, 1); // Освобождаем память, если узел был создан, но не сконструирован
+
+			std::cerr << "Unknown error when creating node." << std::endl;
+			throw;
 		}
 
+		return new_node;
+	}
+
+	try
+	{
 		if (value < node->data_)
 			node->left_ = Insert(node->left_, value);
 		else if (value > node->data_)
@@ -136,9 +168,9 @@ typename BSTree<T, Alloc>::Node* BSTree<T, Alloc>::Insert(Node *node, const T &v
 		else // Если значение уже существует, увеличиваем счётчик дубликатов
 			node->count_++;
 	}
-	catch (const std::bad_alloc &err)
+	catch (...)
 	{
-		std::cerr << "Ошибка выделения памяти: " << err.what() << std::endl;
+		std::cerr << "Error inserting element into subtree." << std::endl;
 		throw;
 	}
 
@@ -193,12 +225,12 @@ typename BSTree<T, Alloc>::Node* BSTree<T, Alloc>::Remove(typename BSTree<T, All
 		--total_elements_count_;
 		Node *temp = nullptr;
 		if (node->left_ == nullptr)
-			temp  = node->right_; // у узла нет левого потомка, просто заменяем этот узел его правым потомком (узел с одним потомком).
+			temp = node->right_; // у узла нет левого потомка, просто заменяем этот узел его правым потомком (узел с одним потомком).
 		else if (node->right_ == nullptr)
 			temp = node->left_;
 		delete node;
 		return temp; // возвращаем указатель на потомка, который теперь займет место удалённого узла.
-	
+
 		// Узел с двумя потомками: находим минимальный элемент в правом поддереве
 		Node *min_node = Find_min(node->right_);
 		node->data_ = min_node->data_;
@@ -222,34 +254,40 @@ typename BSTree<T, Alloc>::Node* BSTree<T, Alloc>::Find_min(Node *node) const
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
 typename BSTree<T, Alloc>::Node* BSTree<T, Alloc>::Copy(Node *node)
-{/* Алгоритм:
-	1. Рекурсивно создаем копию дерева, начиная с корня.
-	2. Создаем новые узлы, рекурсивно копируя левое и правое поддеревья. */
+{
+	/* Алгоритм:
+		1. Рекурсивно создаем копию дерева, начиная с корня.
+		2. Для каждого узла создаем новый узел и рекурсивно копируем его левое и правое поддеревья.
+
+		Algorithm:
+		1. Recursively create a copy of the tree, starting from the root.
+		2. For each node, create a new node and recursively copy its left and right subtrees. */
 
 	if (node == nullptr)
-		return nullptr; // Если узел пустой, возвращаем nullptr
+		return nullptr; // If the node is null, return nullptr
 
 	Node *new_node = nullptr;
 
 	try
 	{
-		new_node = new Node(node->data_);  // Создаем новый узел
+		new_node = alloc_.Allocate(1); // Allocate memory using allocator
+		alloc_.Construct(new_node, node->data_);  // Create a new node
 
-		// Копируем левое и правое поддеревья рекурсивно
+		// Recursively copy the left and right subtrees
 		new_node->left_ = Copy(node->left_);
 		new_node->right_ = Copy(node->right_);
 
-		new_node->count_ = node->count_; // Переносим счётчик дубликатов
+		new_node->count_ = node->count_; // Transfer the duplicate counter
 	}
 	catch (const std::bad_alloc &err)
 	{
-		std::cerr << "Ошибка выделения памяти при копировании узла: " << err.what() << std::endl;
+		std::cerr << "Memory allocation error when copying node: " << err.what() << std::endl;
 		Clear(new_node);
-		
+
 		throw;
 	}
 
-	return new_node; // Возвращаем указатель на новый узел
+	return new_node; // Return a pointer to the new node
 }
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
@@ -259,20 +297,35 @@ void BSTree<T, Alloc>::Clear(Node *node)
 	{
 		Clear(node->left_);
 		Clear(node->right_);
-		
-		// Уничтожаем узел и освобождаем память
-		alloc_.Destroy(node);
-		alloc_.Deallocate(node, 1);
+
+		try
+		{ // Destroy the node and free memory
+			alloc_.Destroy(node);
+			alloc_.Deallocate(node, 1);
+		}
+		catch (...)
+		{
+			std::cerr << "Error freeing memory for node." << std::endl;
+			throw;
+		}
+
 	}
 }
 //----------------------------------------------------------------------------------------------------
 template <typename T, typename Alloc>
 void BSTree<T, Alloc>::Inorder(Node *node) const
-{ /* Алгоритм:
+{ // Этот алгоритм описывает симметричный (in-order) обход дерева.
+ /* 
+	Алгоритм:
 	1. Рекурсивно обходим левое поддерево.
 	2. Печатаем значение текущего узла.
 	3. Рекурсивно обходим правое поддерево.
-  */
+ 
+	Algorithm:
+	1. Recursively traverse the left subtree.
+	2. Print the value of the current node.
+	3. Recursively traverse the right subtree.
+ */
 	if (node == nullptr)
 		return;
 
